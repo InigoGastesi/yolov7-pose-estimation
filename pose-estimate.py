@@ -10,12 +10,18 @@ from utils.torch_utils import select_device
 from models.experimental import attempt_load
 from utils.general import non_max_suppression_kpt,strip_optimizer,xyxy2xywh
 from utils.plots import output_to_keypoint, plot_skeleton_kpts,colors,plot_one_box_kpt
-
+from from_oi2coco import OI2Coco
+import json
 @torch.no_grad()
-def run(poseweights="yolov7-w6-pose.pt",source="football1.mp4",device='cpu',view_img=False,
-        save_conf=False,line_thickness = 3,hide_labels=False, hide_conf=True):
-
+def run(poseweights="yolov7-w6-pose.pt",source="surfing_alaia.mp4",device='cpu',view_img=False,
+        save_conf=False,line_thickness = 3,hide_labels=False, hide_conf=True, store_images=True, img_path="images/"):
+    
+    coco_handler = OI2Coco()
+    coco_handler.createPlaceForImageSpace(img_path)
+    coco_handler.generateBaseAnnotationData()
+    coco_handler.getVideoPrefix_from_filename("")
     frame_count = 0  #count no of frames
+    annotation_id=0
     total_fps = 0  #count total fps
     time_list = []   #list to store time
     fps_list = []    #list to store fps
@@ -56,6 +62,9 @@ def run(poseweights="yolov7-w6-pose.pt",source="football1.mp4",device='cpu',view
             
             if ret: #if success is true, means frame exist
                 orig_image = frame #store frame
+                # put here the image annotation: 
+                coco_handler.addImageAnnotation(orig_image,frame_count, store_images=True)
+
                 image = cv2.cvtColor(orig_image, cv2.COLOR_BGR2RGB) #convert frame to RGB
                 image = letterbox(image, (frame_width), stride=64, auto=True)[0]
                 image_ = image.copy()
@@ -94,10 +103,16 @@ def run(poseweights="yolov7-w6-pose.pt",source="football1.mp4",device='cpu',view
                         for det_index, (*xyxy, conf, cls) in enumerate(reversed(pose[:,:6])): #loop over poses for drawing on frame
                             c = int(cls)  # integer class
                             kpts = pose[det_index, 6:]
+                            
+                          
+
                             label = None if opt.hide_labels else (names[c] if opt.hide_conf else f'{names[c]} {conf:.2f}')
-                            plot_one_box_kpt(xyxy, im0, label=label, color=colors(c, True), 
+                            keypoint_list = plot_one_box_kpt(xyxy, im0, label=label, color=colors(c, True), 
                                         line_thickness=opt.line_thickness,kpt_label=True, kpts=kpts, steps=3, 
                                         orig_shape=im0.shape[:2])
+                            coco_handler.addAnnotation(xyxy,keypoint_list,frame_count,annotation_id)
+                            print(json.dumps(coco_handler.coco_annotation_dict, indent = 4))
+                    annotation_id= annotation_id + 1        
 
                 
                 end_time = time.time()  #Calculatio for FPS
@@ -119,6 +134,7 @@ def run(poseweights="yolov7-w6-pose.pt",source="football1.mp4",device='cpu',view
                 break
 
         cap.release()
+        coco_handler.save2JSON("results.json")
         # cv2.destroyAllWindows()
         avg_fps = total_fps / frame_count
         print(f"Average FPS: {avg_fps:.3f}")
@@ -130,7 +146,7 @@ def run(poseweights="yolov7-w6-pose.pt",source="football1.mp4",device='cpu',view
 def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--poseweights', nargs='+', type=str, default='yolov7-w6-pose.pt', help='model path(s)')
-    parser.add_argument('--source', type=str, default='football1.mp4', help='video/0 for webcam') #video source
+    parser.add_argument('--source', type=str, default='surfing_alaia.mp4', help='video/0 for webcam') #video source
     parser.add_argument('--device', type=str, default='cpu', help='cpu/0,1,2,3(gpu)')   #device arugments
     parser.add_argument('--view-img', action='store_true', help='display results')  #display results
     parser.add_argument('--save-conf', action='store_true', help='save confidences in --save-txt labels') #save confidence in txt writing
