@@ -56,7 +56,8 @@ def plot_one_box_kpt(x, im, color=None, label=None, line_thickness=3, kpt_label=
             cv2.rectangle(im, c1, c2, color, -1, cv2.LINE_AA)  # filled
             cv2.putText(im, label, (c1[0], c1[1] - 2), 0, tl / 6, [225, 255, 255], thickness=tf//2, lineType=cv2.LINE_AA)
     if kpt_label:
-        plot_skeleton_kpts(im, kpts, steps, orig_shape=orig_shape)
+        out_keypoints = plot_skeleton_kpts(im, kpts, steps, orig_shape=orig_shape)
+        return out_keypoints
 
 colors = Colors()  
 
@@ -479,6 +480,7 @@ def output_to_keypoint(output):
 
 def plot_skeleton_kpts(im, kpts, steps, orig_shape=None):
     #Plot the skeleton and keypointsfor coco datatset
+    coco_keypoint_list=[]
     palette = np.array([[255, 128, 0], [255, 153, 51], [255, 178, 102],
                         [230, 230, 0], [255, 153, 255], [153, 204, 255],
                         [255, 102, 255], [255, 51, 255], [102, 178, 255],
@@ -505,7 +507,8 @@ def plot_skeleton_kpts(im, kpts, steps, orig_shape=None):
                 if conf < 0.5:
                     continue
             cv2.circle(im, (int(x_coord), int(y_coord)), radius, (int(r), int(g), int(b)), -1)
-
+        coco_keypoint_list.append(int(x_coord))
+        coco_keypoint_list.append(int(y_coord))
     for sk_id, sk in enumerate(skeleton):
         r, g, b = pose_limb_color[sk_id]
         pos1 = (int(kpts[(sk[0]-1)*steps]), int(kpts[(sk[0]-1)*steps+1]))
@@ -520,3 +523,4 @@ def plot_skeleton_kpts(im, kpts, steps, orig_shape=None):
         if pos2[0] % 640 == 0 or pos2[1] % 640 == 0 or pos2[0]<0 or pos2[1]<0:
             continue
         cv2.line(im, pos1, pos2, (int(r), int(g), int(b)), thickness=2)
+    return coco_keypoint_list   
