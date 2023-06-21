@@ -12,8 +12,8 @@ class OI2Coco:
     def __init__(self):
         self.coco_annotation_dict=dict()
         self.ov_imagelist_info=dict()
-    def save2JSON(self,out_file):
-        with open(out_file, 'w') as f:
+    def save2JSON(self):
+        with open(os.path.join(self.output_path, "annotations.json"), 'w') as f:
             json.dump(self.coco_annotation_dict, f)
         print(f'Data saved to {self}')     
     def generateBaseAnnotationData(self):
@@ -26,19 +26,14 @@ class OI2Coco:
         print("finishing generating data")
         return self.coco_annotation_dict
     def createPlaceForImageSpace(self,path):
-        print("creating space for storing images")
-        if not os.path.exists(path):
-            os.makedirs(path)
-            print(f'Folder created at {path}')
-        else:
-            print(f'Folder already exists at {path}')
-        self.image_store_path=path
+        self.image_store_path=os.path.join(path, "images")
+        self.output_path = path
     def addImageAnnotation(self,img,image_id,store_images=True):
         ann=dict()
-        filename=self.image_prefix+"_"+str(image_id)+".jpg"
+        output_path=os.path.join(self.image_store_path, self.image_prefix+"_"+str(image_id)+".jpg")
+        filename = self.image_prefix+"_"+str(image_id)+".jpg"
         if store_images:
-            
-            cv2.imwrite(filename,img)
+            cv2.imwrite(output_path,img)
         ann["license"]= 4
         ann["file_name"]= filename
         ann["coco_url"]= ""
@@ -48,10 +43,11 @@ class OI2Coco:
         ann["flickr_url"]= ""
         ann["id"]= image_id    
         self.coco_annotation_dict["images"].append(ann)
-    def addAnnotation(self, detection, kpts, image_id, annotation_id):
+    def addAnnotation(self, detection, kpts, image_id, annotation_id, num_kpts, ratio):
         image_found = False
         ann=dict()
         ann["segmentation"]=[[]]
+        ann["num_keypoints"] = num_kpts
         ann["iscrowd"]=False
         ann['bbox'] = [int(detection[0]),int(detection[1]), int(detection[2]), int(detection[3])]
         ann['area'] = round(int(detection[2]) * int(detection[3]), 2)
@@ -61,7 +57,7 @@ class OI2Coco:
         ann["keypoints"]=kpts
         self.coco_annotation_dict["annotations"].append(ann)
     def getVideoPrefix_from_filename(self, videoname):
-        self.image_prefix="video_1"
+        self.image_prefix=videoname
         return self.image_prefix
 
     def generateImages(self,dataframe, dst_folder):
