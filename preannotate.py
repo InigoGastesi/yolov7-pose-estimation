@@ -15,12 +15,13 @@ from from_oi2coco import OI2Coco
 import json
 import glob
 import os
+import tqdm
 
 def make_dir(source, output):
     for i, video in enumerate(glob.glob(f"{source}/*.mp4")):
-        os.makedirs(os.path.join(output, f"video_{i}"), exist_ok=True)
-        os.makedirs(os.path.join(output, f"video_{i}", "images"), exist_ok=True)
-
+        os.makedirs(os.path.join(output, f"{os.path.basename(video)[:-4]}"), exist_ok=True)
+        os.makedirs(os.path.join(output, f"{os.path.basename(video)[:-4]}", "images"), exist_ok=True)
+        os.makedirs(os.path.join(output, f"{os.path.basename(video)[:-4]}", "res_images"), exist_ok=True)
 
 @torch.no_grad()
 def run(poseweights="yolov7-w6-pose.pt",source="", output_folder="", device='cpu',view_img=False,
@@ -34,18 +35,19 @@ def run(poseweights="yolov7-w6-pose.pt",source="", output_folder="", device='cpu
     model = attempt_load(poseweights, map_location=device)  #Load model
     _ = model.eval()
     names = model.module.names if hasattr(model, 'module') else model.names  # get class names
-    for i, video in enumerate(glob.glob(f"{source}/*.mp4")):
+    for video in tqdm.tqdm(glob.glob(f"{source}/*.mp4")):
         coco_handler = OI2Coco()
-        coco_handler.createPlaceForImageSpace(os.path.join(output_folder, f"video_{i}"))
+        coco_handler.createPlaceForImageSpace(os.path.join(output_folder, f"{os.path.basename(video)[:-4]}"))
         coco_handler.generateBaseAnnotationData()
-        coco_handler.getVideoPrefix_from_filename(f"video_{i}")
+        coco_handler.getVideoPrefix_from_filename(f"{os.path.basename(video)[:-4]}")
         frame_count = 0  #count no of frames
         annotation_id=0
         total_fps = 0  #count total fps
         time_list = []   #list to store time
         fps_list = []    #list to store fps
         cap = cv2.VideoCapture(video)    #pass video to videocapture object
-       
+        min_frame = 125
+        max_frame = 250
         if (cap.isOpened() == False):   #check if videocapture not opened
             print('Error while trying to read video. Please check path again')
             raise SystemExit()
@@ -57,93 +59,96 @@ def run(poseweights="yolov7-w6-pose.pt",source="", output_folder="", device='cpu
             
             vid_write_image = letterbox(cap.read()[1], (frame_width), stride=64, auto=True)[0] #init videowriter
             resize_height, resize_width = vid_write_image.shape[:2]
-            out = cv2.VideoWriter(f"{output_folder}/video_{i}/video{i}_keypoint.mp4",
+            out = cv2.VideoWriter(f"{output_folder}/{os.path.basename(video)[:-4]}/{os.path.basename(video)[:-4]}_keypoint.mp4",
                             cv2.VideoWriter_fourcc(*'mp4v'), 30,
                             (resize_width, resize_height))
             while(cap.isOpened): #loop until cap opened or video not complete
             
-                print("Frame {} Processing".format(frame_count+1))
+                # print("Frame {} Processing".format(frame_count+1))
 
                 ret, frame = cap.read()  #get frame and success from video capture
                 if ret: #if success is true, means frame exist
-                    orig_image = frame #store frame
-                    # put here the image annotation: 
+                    if frame_count >= min_frame and frame_count <= max_frame:
+                        orig_image = frame #store frame
+                        # put here the image annotation: 
 
-                    image = cv2.cvtColor(orig_image, cv2.COLOR_BGR2RGB) #convert frame to RGB
-                    image, ratio, _ = letterbox(image, (frame_width), stride=64, auto=True)
-                    print(ratio)
-                    image_ = image.copy()
-                    image = transforms.ToTensor()(image)
-                    image = torch.tensor(np.array([image.numpy()]))
-                
-                    image = image.to(device)  #convert image data to device
-                    image = image.float() #convert image to float precision (cpu)
-                    start_time = time.time() #start time for fps calculation
-                
-                    with torch.no_grad():  #get predictions
-                        output_data, _ = model(image)
-
-                    output_data = non_max_suppression_kpt(output_data,   #Apply non max suppression
-                                                0.25,   # Conf. Threshold.
-                                                0.65, # IoU Threshold.
-                                                nc=model.yaml['nc'], # Number of classes.
-                                                nkpt=model.yaml['nkpt'], # Number of keypoints.
-                                                kpt_label=True)
-                
-                    output = output_to_keypoint(output_data)
-
-                    im0 = image[0].permute(1, 2, 0) * 255 # Change format [b, c, h, w] to [h, w, c] for displaying the image.
-                    im0 = im0.cpu().numpy().astype(np.uint8)
+                        image = cv2.cvtColor(orig_image, cv2.COLOR_BGR2RGB) #convert frame to RGB
+                        image, ratio, _ = letterbox(image, (frame_width), stride=64, auto=True)
+                        image_ = image.copy()
+                        image = transforms.ToTensor()(image)
+                        image = torch.tensor(np.array([image.numpy()]))
                     
-                    im0 = cv2.cvtColor(im0, cv2.COLOR_RGB2BGR) #reshape image format to (BGR)
-                    gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
-                    coco_handler.addImageAnnotation(im0,frame_count, store_images=True)
-
-                    for i, pose in enumerate(output_data):  # detections per image
+                        image = image.to(device)  #convert image data to device
+                        image = image.float() #convert image to float precision (cpu)
+                        start_time = time.time() #start time for fps calculation
                     
-                        if len(output_data):  #check if no pose
-                            for c in pose[:, 5].unique(): # Print results
-                                n = (pose[:, 5] == c).sum()  # detections per class
-                                print("No of Objects in Current Frame : {}".format(n))
-                            
-                            for det_index, (*xyxy, conf, cls) in enumerate(reversed(pose[:,:6])): #loop over poses for drawing on frame
-                                c = int(cls)  # integer class
-                                kpts = pose[det_index, 6:]
-                                kpts_list = kpts.cpu().numpy().tolist()
-                                for j in range(len(kpts_list)):
-                                    if (j+1) % 3 == 0:
-                                        if kpts_list[j] < 0.5:
-                                            kpts_list[j] = 0
-                                            kpts_list[j-1] = 0
-                                            kpts_list[j-2] = 0
-                                        else:
-                                            kpts_list[j] = 2
-                            
+                        with torch.no_grad():  #get predictions
+                            output_data, _ = model(image)
 
-                                label = None if opt.hide_labels else (names[c] if opt.hide_conf else f'{names[c]} {conf:.2f}')
-                                keypoint_list = plot_one_box_kpt(xyxy, im0, label=label, color=colors(c, True), 
-                                            line_thickness=opt.line_thickness,kpt_label=True, kpts=kpts, steps=3, 
-                                            orig_shape=im0.shape[:2])
+                        output_data = non_max_suppression_kpt(output_data,   #Apply non max suppression
+                                                    0.25,   # Conf. Threshold.
+                                                    0.65, # IoU Threshold.
+                                                    nc=model.yaml['nc'], # Number of classes.
+                                                    nkpt=model.yaml['nkpt'], # Number of keypoints.
+                                                    kpt_label=True)
+                    
+                        output = output_to_keypoint(output_data)
+
+                        im0 = image[0].permute(1, 2, 0) * 255 # Change format [b, c, h, w] to [h, w, c] for displaying the image.
+                        im0 = im0.cpu().numpy().astype(np.uint8)
+                        
+                        im0 = cv2.cvtColor(im0, cv2.COLOR_RGB2BGR) #reshape image format to (BGR)
+                        gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
+                        coco_handler.addImageAnnotation(im0,frame_count, store_images=True)
+
+                        for i, pose in enumerate(output_data):  # detections per image
+                        
+                            if len(output_data):  #check if no pose
+                                for c in pose[:, 5].unique(): # Print results
+                                    n = (pose[:, 5] == c).sum()  # detections per class
+                                    # print("No of Objects in Current Frame : {}".format(n))
                                 
-                                coco_handler.addAnnotation(xyxy,kpts_list,frame_count,annotation_id, len(keypoint_list)/2, ratio)
-                                # print(json.dumps(coco_handler.coco_annotation_dict, indent = 4))
-                        annotation_id= annotation_id + 1        
+                                for det_index, (*xyxy, conf, cls) in enumerate(reversed(pose[:,:6])): #loop over poses for drawing on frame
+                                    c = int(cls)  # integer class
+                                    kpts = pose[det_index, 6:]
+                                    kpts_list = kpts.cpu().numpy().tolist()
+                                    for j in range(len(kpts_list)):
+                                        if (j+1) % 3 == 0:
+                                            if kpts_list[j] < 0.5:
+                                                kpts_list[j] = 0
+                                                kpts_list[j-1] = 0
+                                                kpts_list[j-2] = 0
+                                            else:
+                                                kpts_list[j] = 2
+                                
 
-                    
-                    end_time = time.time()  #Calculatio for FPS
-                    fps = 1 / (end_time - start_time)
-                    total_fps += fps
+                                    label = None if opt.hide_labels else (names[c] if opt.hide_conf else f'{names[c]} {conf:.2f}')
+                                    keypoint_list = plot_one_box_kpt(xyxy, im0, label=label, color=colors(c, True), 
+                                                line_thickness=opt.line_thickness,kpt_label=True, kpts=kpts, steps=3, 
+                                                orig_shape=im0.shape[:2])
+                                    
+                                    coco_handler.addAnnotation(xyxy,kpts_list,frame_count,annotation_id, len(keypoint_list)/2, ratio)
+                                    # print(json.dumps(coco_handler.coco_annotation_dict, indent = 4))
+                            annotation_id= annotation_id + 1        
+
+                        
+                        end_time = time.time()  #Calculatio for FPS
+                        fps = 1 / (end_time - start_time)
+                        total_fps += fps
+                        
+                        
+                        fps_list.append(total_fps) #append FPS in list
+                        time_list.append(end_time - start_time) #append time in list
+                        
+                        # Stream results
+                        if view_img:
+                            cv2.imshow("YOLOv7 Pose Estimation Demo", im0)
+                            cv2.waitKey(1)  # 1 millisecond
+                        out.write(im0)
+                        video_basename = os.path.basename(video)[:-4]
+                        output_path = os.path.join(output_folder, video_basename, "res_images", coco_handler.image_prefix+"_"+f"{frame_count:08d}"+".jpg")
+                        cv2.imwrite(output_path, im0)
                     frame_count += 1
-                    
-                    fps_list.append(total_fps) #append FPS in list
-                    time_list.append(end_time - start_time) #append time in list
-                    
-                    # Stream results
-                    if view_img:
-                        cv2.imshow("YOLOv7 Pose Estimation Demo", im0)
-                        cv2.waitKey(1)  # 1 millisecond
-                    out.write(im0)
-                    
                 else:
                     break
 
@@ -153,7 +158,7 @@ def run(poseweights="yolov7-w6-pose.pt",source="", output_folder="", device='cpu
         # coco_handler.save2JSON("results.json")
         # cv2.destroyAllWindows()
         avg_fps = total_fps / frame_count
-        print(f"Average FPS: {avg_fps:.3f}")
+        # print(f"Average FPS: {avg_fps:.3f}")
         
         #plot the comparision graph
         # plot_fps_time_comparision(time_list=time_list,fps_list=fps_list)
@@ -189,5 +194,5 @@ def main(opt):
 
 if __name__ == "__main__":
     opt = parse_opt()
-    strip_optimizer(opt.device,opt.poseweights)
+    # strip_optimizer(opt.device,opt.poseweights)
     main(opt)

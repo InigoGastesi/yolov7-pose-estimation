@@ -30,8 +30,8 @@ class OI2Coco:
         self.output_path = path
     def addImageAnnotation(self,img,image_id,store_images=True):
         ann=dict()
-        output_path=os.path.join(self.image_store_path, self.image_prefix+"_"+str(image_id)+".jpg")
-        filename = self.image_prefix+"_"+str(image_id)+".jpg"
+        output_path=os.path.join(self.image_store_path, self.image_prefix+"_"+f"{image_id:08d}"+".jpg")
+        filename = self.image_prefix+"_"+f"{image_id:08d}"+".jpg"
         if store_images:
             cv2.imwrite(output_path,img)
         ann["license"]= 4
