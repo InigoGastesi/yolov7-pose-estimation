@@ -110,6 +110,8 @@ def run(poseweights="yolov7-w6-pose.pt",source="", output_folder="", device='cpu
                                 
                                 for det_index, (*xyxy, conf, cls) in enumerate(reversed(pose[:,:6])): #loop over poses for drawing on frame
                                     c = int(cls)  # integer class
+                                    length = len(pose[:,:6])-1
+                                    det_index = length-det_index
                                     kpts = pose[det_index, 6:]
                                     kpts_list = kpts.cpu().numpy().tolist()
                                     for j in range(len(kpts_list)):

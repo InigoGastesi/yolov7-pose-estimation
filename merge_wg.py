@@ -2,24 +2,22 @@ import shutil
 import glob
 import os
 import tqdm
-from pyodi.apps.coco import coco_merge
 import json
 from typing import Any, Dict, Optional
+import argparse
 
+def parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input_folder", type=str)
+    parser.add_argument("--output_folder", type=str)
+    return parser.parse_args()
 
+def copy_images(path, output_path):
+    for img in glob.glob(os.path.join(path, "*")):
+        shutil.copy(img, output_path)
 
-def coco_merge(
-    input_extend: str, input_add: str, output_file: str, indent: Optional[int] = None,
-) -> str:
-    """Merge COCO annotation files.
+def coco_merge(input_extend, input_add):
 
-    Args:
-        input_extend: Path to input file to be extended.
-        input_add: Path to input file to be added.
-        output_file : Path to output file with merged annotations.
-        indent: Argument passed to `json.dump`. See https://docs.python.org/3/library/json.html#json.dump.
-    """
-   
     data_extend = input_extend
     with open(input_add, "r") as f:
         data_add = json.load(f)
@@ -64,28 +62,36 @@ def coco_merge(
             annotation["category_id"] = cat_id_map[annotation["category_id"]]
 
             output["annotations"].append(annotation)
-        return output
+    return output
 
+def merge(input_folder, output_folder):
+    os.makedirs(os.path.join(output_folder), exist_ok=True)
+    os.makedirs(os.path.join(output_folder, "images"), exist_ok=True)
+    os.makedirs(os.path.join(output_folder, "annotations"), exist_ok=True)
+    output_images = os.path.join(output_folder, "images")
+    output_json = os.path.join(output_folder, "annotations", "annotations.json")
 
-
-for video in tqdm.tqdm(glob.glob("/usr/src/data/wg_processed/*")):
-    for img in glob.glob(os.path.join(video, "images","*.jpg")):
-        shutil.copy(img, "/usr/src/data/wg_dataset_2/images")
-
-output = "/usr/src/data/wg_dataset_2/annotations.json"
-
-for i, video in tqdm.tqdm(enumerate(glob.glob("/usr/src/data/wg_processed/*"))):
-    if i == 0:
-        first = os.path.join(video,"annotations.json")
-        with open(first, "r") as f:
-            first_data = json.load(f)
-        continue
-    if i == 1:
+    for i, video in enumerate(tqdm.tqdm(glob.glob(os.path.join(input_folder, "*")))):
+        if i == 0:
+            first = os.path.join(video,"annotations.json")
+            with open(first, "r") as f:
+                first_data = json.load(f)
+            copy_images(os.path.join(video, "images"), output_images)
+            continue
+        if i == 1:
+            coco_add = os.path.join(video,"annotations.json")
+            data = coco_merge(first_data, coco_add)
+            copy_images(os.path.join(video, "images"), output_images)
+            continue
         coco_add = os.path.join(video,"annotations.json")
-        data = coco_merge(first_data, coco_add, output)
-        continue
-    coco_add = os.path.join(video,"annotations.json")
-    data = coco_merge(data, coco_add, output)
+        data = coco_merge(data, coco_add)
+        copy_images(os.path.join(video, "images"), output_images)
 
-with open(output, "w") as f:
-    json.dump(output, f, indent=None)
+
+
+    with open(output_json, "w") as f:
+        json.dump(data, f)
+
+if __name__ == "__main__":
+    opt = parser()
+    merge(opt.input_folder, opt.output_folder)
