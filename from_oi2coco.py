@@ -15,7 +15,7 @@ class OI2Coco:
     def save2JSON(self):
         with open(os.path.join(self.output_path, "annotations.json"), 'w') as f:
             json.dump(self.coco_annotation_dict, f)
-        print(f'Data saved to {self}')     
+        # print(f'Data saved to {self}')     
     def generateBaseAnnotationData(self):
         # pdb.set_trace()
         self.coco_annotation_dict["info"]=sd.generation_info()
