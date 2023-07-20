@@ -23,7 +23,7 @@ class OI2Coco:
         self.coco_annotation_dict["images"]= []
         self.coco_annotation_dict["annotations"]=[]
         self.coco_annotation_dict["categories"]=sd.generate_static_categories()
-        print("finishing generating data")
+        # print("finishing generating data")
         return self.coco_annotation_dict
     def createPlaceForImageSpace(self,path):
         self.image_store_path=os.path.join(path, "images")

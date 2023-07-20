@@ -14,17 +14,17 @@ def draw_kpts(imagen, keypoints):
 def draw_bbox(img, bbox):
     img = cv2.rectangle(img, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (0, 255, 0), 2)
     return img
-with open("/usr/src/data/wg_dataset/annotations/annotations.json") as f:
+with open("/usr/src/data/wg_dataset_2/annotations/annotations.json") as f:
     data = json.load(f)
 
 images = data["images"]
 annotations = data["annotations"]
-index = random.randint(0,4)
+index = random.randint(0,129440)
 ann = annotations[index]
 ann_id = ann["image_id"]
 for img in images:
     if img["id"] == ann_id:
-        img_path = os.path.join("/usr/src/data/wg_dataset/images", img["file_name"])
+        img_path = os.path.join("/usr/src/data/wg_dataset_2/images", img["file_name"])
 
 img = cv2.imread(img_path)
 kpts = ann["keypoints"]

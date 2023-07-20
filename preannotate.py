@@ -46,8 +46,8 @@ def run(poseweights="yolov7-w6-pose.pt",source="", output_folder="", device='cpu
         time_list = []   #list to store time
         fps_list = []    #list to store fps
         cap = cv2.VideoCapture(video)    #pass video to videocapture object
-        min_frame = 125
-        max_frame = 250
+        min_frame = 100
+        max_frame = 225
         if (cap.isOpened() == False):   #check if videocapture not opened
             print('Error while trying to read video. Please check path again')
             raise SystemExit()
@@ -86,7 +86,7 @@ def run(poseweights="yolov7-w6-pose.pt",source="", output_folder="", device='cpu
                             output_data, _ = model(image)
 
                         output_data = non_max_suppression_kpt(output_data,   #Apply non max suppression
-                                                    0.25,   # Conf. Threshold.
+                                                    0.85,   # Conf. Threshold.
                                                     0.65, # IoU Threshold.
                                                     nc=model.yaml['nc'], # Number of classes.
                                                     nkpt=model.yaml['nkpt'], # Number of keypoints.
