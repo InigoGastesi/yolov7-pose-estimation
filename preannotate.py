@@ -128,8 +128,8 @@ def run(poseweights="yolov7-w6-pose.pt",source="", output_folder="", device='cpu
                                     keypoint_list = plot_one_box_kpt(xyxy, im0, label=label, color=colors(c, True), 
                                                 line_thickness=opt.line_thickness,kpt_label=True, kpts=kpts, steps=3, 
                                                 orig_shape=im0.shape[:2])
-                                    
-                                    coco_handler.addAnnotation(xyxy,kpts_list,frame_count,annotation_id, len(keypoint_list)/2, ratio)
+                                    xywh = xyxy2xywh(xyxy)
+                                    coco_handler.addAnnotation(xywh,kpts_list,frame_count,annotation_id, len(keypoint_list)/2, ratio)
                                     # print(json.dumps(coco_handler.coco_annotation_dict, indent = 4))
                             annotation_id= annotation_id + 1        
 

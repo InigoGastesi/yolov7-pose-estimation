@@ -1,1 +1,1 @@
-python merge_wg.py --input_folder /usr/src/data/wg_processed --output_folder /usr/src/data/wg_dataset
+python merge_wg.py --input_folder /usr/src/data/wg_processed --output_folder /usr/src/data/wg_dataset_2
